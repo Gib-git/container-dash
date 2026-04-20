@@ -1,6 +1,8 @@
+<img width="2556" height="1286" alt="Screenshot 2026-04-20 at 12 54 23 PM" src="https://github.com/user-attachments/assets/0d6ebdb3-2d54-4a39-b958-f09b54f6e68e" />
+
 # GridDock — Local Container Dashboard
 
-A sleek, resizable grid dashboard for managing local container web UIs. All tile positions and sizes persist in SQLite.
+A sleek, resizable grid dashboard for managing local container web UIs. All tile positions and sizes persist in SQLite. Using it for studying since all my windows get very messy very quickly on mac os and I just use docker containers anyway. Wish for better window management. 
 
 ## Features
 
