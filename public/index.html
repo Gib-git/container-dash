@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GridDock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0b0e;
+      --surface: #111318;
+      --surface2: #1a1d24;
+      --surface3: #20242e;
+      --border: rgba(255,255,255,0.07);
+      --border-bright: rgba(255,255,255,0.15);
+      --accent: #00ff88;
+      --accent2: #0088ff;
+      --accent-pdf: #ff6b35;
+      --text: #e8eaf0;
+      --text-muted: #6b7280;
+      --text-dim: #3d4148;
+      --danger: #ff4444;
+      --toolbar-h: 60px;
+      --tabbar-h: 38px;
+      --radius: 6px;
+      --gap: 8px;
+      --cols: 12;
+      --row-h: 60px;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-display: 'Syne', sans-serif;
+      --header-h: calc(var(--toolbar-h) + var(--tabbar-h));
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-mono);
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; overflow-x: hidden;
+    }
+
+    /* ── Background ── */
+    #bg-layer {
+      position: fixed; inset: 0; z-index: 0;
+      background-size: cover; background-position: center; pointer-events: none;
+    }
+    #bg-layer::after { content: ''; position: absolute; inset: 0; background: rgba(10,11,14,0.75); }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--toolbar-h); z-index: 200;
+      display: flex; align-items: center; gap: 10px; padding: 0 20px;
+      background: rgba(10,11,14,0.92); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      transition: transform 0.25s ease;
+    }
+    #toolbar.hidden { transform: translateY(calc(-100% - var(--tabbar-h))); }
+
+    #toolbar-tab {
+      position: fixed; top: 0; right: 20px; z-index: 201;
+      display: none; align-items: center; gap: 6px;
+      padding: 4px 12px 6px;
+      background: rgba(10,11,14,0.92); border: 1px solid var(--border);
+      border-top: none; border-radius: 0 0 var(--radius) var(--radius);
+      backdrop-filter: blur(20px); cursor: pointer;
+      font-size: 11px; color: var(--text-muted); transition: color 0.15s;
+    }
+    #toolbar-tab:hover { color: var(--text); }
+    #toolbar.hidden ~ #toolbar-tab { display: flex; }
+
+    .logo {
+      font-family: var(--font-display); font-weight: 800; font-size: 17px;
+      color: var(--accent); letter-spacing: -0.5px; margin-right: 4px; white-space: nowrap;
+    }
+    .logo span { color: var(--text-muted); font-weight: 400; }
+    .sep { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; }
+
+    .tb-input {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: var(--font-mono); font-size: 12px;
+      padding: 7px 11px; outline: none; transition: border-color 0.2s;
+    }
+    .tb-input::placeholder { color: var(--text-dim); }
+    .tb-input:focus { border-color: var(--accent); }
+    #url-input { flex: 1; max-width: 340px; }
+    #label-input { width: 150px; }
+
+    .btn {
+      padding: 7px 14px; border-radius: var(--radius); border: none;
+      font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: #00e87a; }
+    .btn-pdf { background: var(--accent-pdf); color: #000; }
+    .btn-pdf:hover { background: #ff855a; }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--border-bright); color: var(--text); }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(255,68,68,0.3); }
+    .btn-danger:hover { background: rgba(255,68,68,0.1); }
+    .btn-icon {
+      width: 32px; height: 32px; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+      border-radius: var(--radius); cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+    }
+    .btn-icon:hover { border-color: var(--border-bright); color: var(--text); }
+    .btn-icon.active { border-color: var(--accent); color: var(--accent); }
+
+    .toolbar-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+    #tile-count { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+
+    /* ── Tab bar ── */
+    #tabbar {
+      position: fixed; top: var(--toolbar-h); left: 0; right: 0;
+      height: var(--tabbar-h); z-index: 199;
+      display: flex; align-items: stretch;
+      background: rgba(10,11,14,0.88); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 12px;
+      gap: 2px;
+      overflow-x: auto; overflow-y: hidden;
+      transition: transform 0.25s ease;
+    }
+    #tabbar::-webkit-scrollbar { height: 3px; }
+    #tabbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    #toolbar.hidden ~ #toolbar-tab ~ #tabbar { transform: translateY(calc(-1 * var(--toolbar-h))); }
+
+    .tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 10px; min-width: 100px; max-width: 180px;
+      border-radius: var(--radius) var(--radius) 0 0;
+      cursor: pointer; position: relative;
+      border: 1px solid transparent; border-bottom: none;
+      color: var(--text-dim); font-size: 12px;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+      user-select: none; flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .tab:hover { color: var(--text-muted); background: rgba(255,255,255,0.03); }
+    .tab.active {
+      color: var(--text); background: var(--surface);
+      border-color: var(--border); border-bottom-color: var(--surface);
+    }
+    .tab.active::after {
+      content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px;
+      background: var(--surface);
+    }
+    .tab-name {
+      flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 12px; pointer-events: none;
+    }
+    .tab-name-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: var(--font-mono); font-size: 12px;
+      padding: 0; min-width: 0;
+    }
+    .tab-close {
+      width: 16px; height: 16px; border-radius: 3px; border: none;
+      background: transparent; color: var(--text-dim); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.12s; flex-shrink: 0; padding: 0;
+      opacity: 0;
+    }
+    .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
+    .tab-close:hover { background: rgba(255,68,68,0.15); color: var(--danger); }
+
+    .tab-add {
+      display: flex; align-items: center; justify-content: center;
+      width: 30px; cursor: pointer; color: var(--text-dim);
+      border-radius: var(--radius); transition: color 0.15s;
+      flex-shrink: 0; font-size: 16px; margin-top: 4px;
+    }
+    .tab-add:hover { color: var(--accent); }
+
+    /* ── Canvas ── */
+    #canvas {
+      position: relative; z-index: 1;
+      padding: calc(var(--header-h) + 20px) 20px 80px;
+      transition: padding-top 0.25s ease;
+    }
+    body.toolbar-hidden #canvas { padding-top: calc(var(--tabbar-h) + 20px); }
+
+    /* ── Grid ── */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), 1fr);
+      grid-auto-rows: var(--row-h); gap: var(--gap); position: relative;
+    }
+    #grid-guide {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      display: grid; grid-template-columns: repeat(var(--cols), 1fr);
+      gap: var(--gap); opacity: 0; transition: opacity 0.2s;
+    }
+    #grid-guide.show { opacity: 1; }
+    .guide-col { border: 1px dashed rgba(255,255,255,0.06); border-radius: 3px; }
+    #drop-preview {
+      position: absolute; z-index: 1; pointer-events: none;
+      border-radius: var(--radius);
+      background: rgba(0,255,136,0.06); border: 2px dashed rgba(0,255,136,0.4); display: none;
+    }
+
+    /* ── Tiles ── */
+    .tile {
+      position: relative; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); display: flex; flex-direction: column;
+      overflow: visible; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+      min-width: 0; min-height: 0;
+    }
+    .tile.tile-pdf { border-color: rgba(255,107,53,0.2); }
+    .tile.tile-pdf:hover { border-color: rgba(255,107,53,0.45); }
+    .tile.is-resizing { border-color: var(--accent) !important; box-shadow: 0 0 0 1px var(--accent), 0 8px 40px rgba(0,255,136,0.12); z-index: 50; }
+    .tile.tile-pdf.is-resizing { border-color: var(--accent-pdf) !important; box-shadow: 0 0 0 1px var(--accent-pdf); }
+    .tile.is-dragging { opacity: 0.35; z-index: 50; }
+
+    body.no-borders .tile { border-color: transparent !important; box-shadow: none !important; }
+    body.no-borders .tile-header { background: transparent; border-bottom-color: transparent; }
+    body.no-borders .tile:hover { border-color: rgba(255,255,255,0.05) !important; }
+
+    .tile-header {
+      display: flex; align-items: center; gap: 7px; padding: 6px 9px;
+      background: var(--surface2); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; border-radius: var(--radius) var(--radius) 0 0;
+      cursor: grab; transition: background 0.2s, border-color 0.2s;
+    }
+    .tile-header:active { cursor: grabbing; }
+    .tile-type-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+    .badge-iframe { background: rgba(0,136,255,0.15); color: var(--accent2); }
+    .badge-proxy  { background: rgba(255,200,0,0.15); color: #ffc800; }
+    .badge-pdf    { background: rgba(255,107,53,0.15); color: var(--accent-pdf); }
+    .tile-favicon { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; object-fit: contain; }
+    .tile-label { font-size: 11px; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+    .tile-controls { display: flex; gap: 3px; opacity: 0; transition: opacity 0.15s; }
+    .tile:hover .tile-controls { opacity: 1; }
+    .tile-btn { width: 20px; height: 20px; border-radius: 3px; border: none; background: transparent; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
+    .tile-btn:hover { background: var(--surface3); color: var(--text); }
+    .tile-btn.del:hover { color: var(--danger); }
+    .tile-btn.proxy { color: var(--text-dim); }
+    .tile-btn.proxy.on { color: #ffc800; }
+    .tile-btn.proxy:hover { color: #ffc800; }
+
+    .tile-body { flex: 1; position: relative; min-height: 0; overflow: hidden; border-radius: 0 0 var(--radius) var(--radius); }
+    .tile-body iframe, .tile-body object { width: 100%; height: 100%; border: none; display: block; }
+    .tile-shield { display: none; position: absolute; inset: 0; z-index: 5; background: transparent; }
+    body.interacting .tile-shield { display: block; }
+
+    .tile-loading {
+      position: absolute; inset: 0; z-index: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      font-size: 11px; color: var(--text-muted);
+      pointer-events: none; background: var(--surface); transition: opacity 0.3s;
+    }
+    .tile-loading.hidden { opacity: 0; }
+    .spinner { width: 22px; height: 22px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .spinner.pdf { border-top-color: var(--accent-pdf); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .tile-error { position: absolute; inset: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+    .tile-error-icon { font-size: 26px; }
+    .tile-error-msg  { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+    .tile-error-link { font-size: 10px; color: var(--accent2); text-decoration: none; margin-top: 4px; }
+
+    /* ── Resize handles ── */
+    .rh { position: absolute; z-index: 30; opacity: 0; transition: opacity 0.15s; }
+    .tile:hover .rh, .tile.is-resizing .rh { opacity: 1; }
+    .rh-e { right: -5px; top: 20%; width: 8px; height: 60%; cursor: ew-resize; background: rgba(255,255,255,0.12); border-radius: 4px; }
+    .rh-e:hover, .rh-e.active { background: var(--accent); opacity: 1; }
+    .rh-s { bottom: -5px; left: 20%; height: 8px; width: 60%; cursor: ns-resize; background: rgba(255,255,255,0.12); border-radius: 4px; }
+    .rh-s:hover, .rh-s.active { background: var(--accent); opacity: 1; }
+    .rh-se { bottom: -4px; right: -4px; width: 20px; height: 20px; cursor: se-resize; display: flex; align-items: flex-end; justify-content: flex-end; padding: 3px; }
+    .rh-se svg { color: var(--text-dim); transition: color 0.12s; }
+    .rh-se:hover svg, .rh-se.active svg { color: var(--accent); }
+    .tile-pdf .rh-e:hover, .tile-pdf .rh-e.active { background: var(--accent-pdf); }
+    .tile-pdf .rh-s:hover, .tile-pdf .rh-s.active { background: var(--accent-pdf); }
+    .tile-pdf .rh-se:hover svg, .tile-pdf .rh-se.active svg { color: var(--accent-pdf); }
+
+    /* ── Op ghost & tip ── */
+    #op-ghost { position: fixed; z-index: 400; pointer-events: none; display: none; border-radius: var(--radius); background: rgba(0,255,136,0.05); border: 1.5px dashed var(--accent); }
+    #op-ghost.pdf { background: rgba(255,107,53,0.05); border-color: var(--accent-pdf); }
+    #op-ghost.drag-ghost { background: rgba(0,136,255,0.08); border-color: var(--accent2); box-shadow: 0 16px 48px rgba(0,0,0,0.5); }
+    #op-tip { position: fixed; z-index: 401; pointer-events: none; display: none; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+    /* ── Empty state ── */
+    #empty-state { grid-column: 1/-1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 0; color: var(--text-dim); }
+    #empty-state.show { display: flex; }
+    #empty-state .ei { font-size: 40px; opacity: 0.3; }
+    #empty-state p { font-size: 12px; }
+
+    /* ── Side panels ── */
+    .side-panel {
+      position: fixed; top: var(--header-h); right: 0; z-index: 150;
+      background: var(--surface); border-left: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); border-radius: 0 0 0 var(--radius);
+      padding: 18px; display: none; flex-direction: column; gap: 14px;
+      max-height: calc(100vh - var(--header-h)); overflow-y: auto;
+    }
+    .side-panel.open { display: flex; }
+    .panel-title { font-family: var(--font-display); font-size: 13px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+    #bg-panel { width: 280px; }
+    #pdf-panel { width: 340px; }
+
+    .dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px; text-align: center; cursor: pointer; font-size: 12px; color: var(--text-muted); transition: all 0.2s; flex-shrink: 0; }
+    .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.04); }
+    .dropzone input { display: none; }
+    .bg-preview { width: 100%; height: 90px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); display: none; flex-shrink: 0; }
+    .pdf-dropzone { border: 2px dashed rgba(255,107,53,0.3); border-radius: var(--radius); padding: 20px; text-align: center; cursor: pointer; font-size: 12px; color: var(--text-muted); transition: all 0.2s; flex-shrink: 0; }
+    .pdf-dropzone:hover, .pdf-dropzone.drag-over { border-color: var(--accent-pdf); color: var(--accent-pdf); background: rgba(255,107,53,0.04); }
+    .pdf-dropzone input { display: none; }
+    .prog-wrap { display: none; background: var(--surface2); border-radius: var(--radius); overflow: hidden; height: 4px; flex-shrink: 0; }
+    .prog-bar { height: 100%; background: var(--accent-pdf); width: 0%; transition: width 0.2s; }
+    .pdf-library-title { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; flex-shrink: 0; margin-top: 4px; }
+    .pdf-list { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+    .pdf-list-empty { font-size: 11px; color: var(--text-dim); text-align: center; padding: 12px 0; }
+    .pdf-list-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); transition: border-color 0.15s; }
+    .pdf-list-item:hover { border-color: var(--border-bright); }
+    .pdf-list-icon { font-size: 14px; flex-shrink: 0; }
+    .pdf-list-name { flex: 1; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-list-size { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+    .pdf-list-btn { width: 22px; height: 22px; border-radius: 3px; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-dim); transition: all 0.12s; flex-shrink: 0; }
+    .pdf-list-btn:hover { background: var(--surface3); }
+    .pdf-list-btn.add:hover { color: var(--accent-pdf); }
+    .pdf-list-btn.del:hover { color: var(--danger); }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+  </style>
+</head>
+<body>
+
+<div id="bg-layer"></div>
+
+<div id="toolbar">
+  <div class="logo">GRID<span>DOCK</span></div>
+  <div class="sep"></div>
+  <input id="url-input"   class="tb-input" type="text" placeholder="http://localhost:8080" autocomplete="off" spellcheck="false">
+  <input id="label-input" class="tb-input" type="text" placeholder="Label (optional)">
+  <button class="btn btn-primary" onclick="addTile()">+ URL</button>
+  <div class="sep"></div>
+  <button class="btn btn-pdf" onclick="togglePanel('pdf-panel')">⊕ PDF</button>
+  <div class="toolbar-right">
+    <button class="btn-icon" id="btn-borders" onclick="toggleBorders()" title="Toggle borders">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+    </button>
+    <button class="btn-icon" onclick="togglePanel('bg-panel')" title="Background image">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </button>
+    <button class="btn-icon" id="btn-hide-toolbar" onclick="toggleToolbar()" title="Hide toolbar">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="18 15 12 9 6 15"/>
+      </svg>
+    </button>
+    <span id="tile-count">0 tiles</span>
+  </div>
+</div>
+
+<div id="toolbar-tab" onclick="toggleToolbar()">
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  GridDock
+</div>
+
+<!-- Tab bar -->
+<div id="tabbar">
+  <!-- tabs injected here by JS -->
+  <div class="tab-add" id="tab-add-btn" onclick="createWorkspace()" title="New workspace">+</div>
+</div>
+
+<!-- Background panel -->
+<div id="bg-panel" class="side-panel">
+  <div class="panel-title">Background Image</div>
+  <img id="bg-preview" class="bg-preview" alt="">
+  <div class="dropzone" id="bg-dropzone" onclick="document.getElementById('bg-file').click()">
+    <input type="file" id="bg-file" accept="image/*" onchange="uploadBackground(this.files[0])">
+    <div>Drop image or click to browse</div>
+    <div style="font-size:10px;margin-top:3px;color:var(--text-dim)">JPG · PNG · WebP — max 20 MB</div>
+  </div>
+  <button class="btn btn-danger" onclick="removeBackground()">Remove</button>
+  <button class="btn btn-ghost" onclick="closePanel('bg-panel')">Close</button>
+</div>
+
+<!-- PDF panel -->
+<div id="pdf-panel" class="side-panel">
+  <div class="panel-title" style="color:var(--accent-pdf)">PDF Widgets</div>
+  <div class="pdf-dropzone" id="pdf-dropzone" onclick="document.getElementById('pdf-file').click()">
+    <input type="file" id="pdf-file" accept="application/pdf" onchange="uploadPdf(this.files[0])">
+    <div style="font-size:20px;margin-bottom:4px">📄</div>
+    <div>Drop PDF or click to upload</div>
+    <div style="font-size:10px;margin-top:3px;color:var(--text-dim)">Max 100 MB</div>
+  </div>
+  <input id="pdf-label" class="tb-input" type="text" placeholder="Label for new upload (optional)" style="width:100%">
+  <div class="prog-wrap" id="pdf-prog"><div class="prog-bar" id="pdf-bar"></div></div>
+  <div id="pdf-status" style="font-size:11px;color:var(--text-muted);min-height:16px"></div>
+  <div class="pdf-library-title">Uploaded PDFs</div>
+  <div class="pdf-list" id="pdf-list"><div class="pdf-list-empty">No PDFs uploaded yet</div></div>
+  <button class="btn btn-ghost" onclick="closePanel('pdf-panel')">Close</button>
+</div>
+
+<div id="op-ghost"></div>
+<div id="op-tip"></div>
+
+<div id="canvas">
+  <div id="grid">
+    <div id="grid-guide"></div>
+    <div id="drop-preview"></div>
+    <div id="empty-state" class="show">
+      <div class="ei">⬡</div>
+      <p>Paste a URL above, or upload a PDF widget</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────
+const COLS = 12, GAP = 8, ROW_H = 60, DRAG_THRESHOLD = 6;
+
+// ── State ─────────────────────────────────────────────────
+let workspaces   = [];   // [{id, name, pos}]
+let activeWsId   = null;
+let tiles        = [];   // tiles for active workspace
+let settings     = {};
+
+// ── Boot ──────────────────────────────────────────────────
+async function init() {
+  buildGuide();
+  bindBgDrop();
+  bindPdfDrop();
+  bindEnter();
+  await loadSettings();
+  await loadWorkspaces();  // also loads tiles for active ws
+}
+
+// ── Grid geometry ─────────────────────────────────────────
+function gridGeo() {
+  const g = document.getElementById('grid'), r = g.getBoundingClientRect();
+  return { left: r.left, top: r.top, colW: (r.width - (COLS-1)*GAP)/COLS, rowH: ROW_H };
+}
+function cellToPx(col, row, g) {
+  return { x: g.left + col*(g.colW+GAP), y: g.top + row*(g.rowH+GAP) };
+}
+
+// ── Settings ──────────────────────────────────────────────
+async function loadSettings() {
+  const r = await fetch('/api/settings');
+  settings = await r.json();
+  if (settings.background) applyBg(settings.background);
+  if (settings.no_borders === '1') { document.body.classList.add('no-borders'); document.getElementById('btn-borders').classList.add('active'); }
+  if (settings.toolbar_hidden === '1') applyToolbarHidden(true);
+}
+async function saveSetting(key, value) {
+  await fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key,value}) });
+}
+function applyBg(url) {
+  document.getElementById('bg-layer').style.backgroundImage = `url(${url})`;
+  const p = document.getElementById('bg-preview'); p.src = url; p.style.display = 'block';
+}
+
+// ── UI toggles ────────────────────────────────────────────
+function toggleBorders() {
+  const on = document.body.classList.toggle('no-borders');
+  document.getElementById('btn-borders').classList.toggle('active', on);
+  saveSetting('no_borders', on ? '1' : '0');
+}
+function applyToolbarHidden(h) {
+  document.getElementById('toolbar').classList.toggle('hidden', h);
+  document.body.classList.toggle('toolbar-hidden', h);
+}
+function toggleToolbar() {
+  const hidden = !document.getElementById('toolbar').classList.contains('hidden');
+  applyToolbarHidden(hidden);
+  saveSetting('toolbar_hidden', hidden ? '1' : '0');
+}
+
+// ── Workspaces ────────────────────────────────────────────
+async function loadWorkspaces() {
+  const r = await fetch('/api/workspaces');
+  workspaces = await r.json();
+
+  // Restore last active workspace from settings, or use first
+  const savedId = parseInt(settings.active_workspace);
+  const valid   = workspaces.find(w => w.id === savedId);
+  activeWsId    = valid ? savedId : workspaces[0]?.id ?? null;
+
+  renderTabs();
+  await loadTiles();
+}
+
+function renderTabs() {
+  const bar    = document.getElementById('tabbar');
+  const addBtn = document.getElementById('tab-add-btn');
+  bar.querySelectorAll('.tab').forEach(t => t.remove());
+
+  workspaces.forEach(ws => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (ws.id === activeWsId ? ' active' : '');
+    tab.dataset.id = ws.id;
+    tab.innerHTML = `
+      <span class="tab-name">${esc(ws.name)}</span>
+      <button class="tab-close" title="Close workspace" data-id="${ws.id}">
+        <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    `;
+    // Click to switch
+    tab.addEventListener('click', e => {
+      if (e.target.closest('.tab-close')) return;
+      switchWorkspace(ws.id);
+    });
+    // Double-click to rename
+    tab.querySelector('.tab-name').addEventListener('dblclick', e => {
+      e.stopPropagation();
+      startRenameTab(tab, ws);
+    });
+    // Close button
+    tab.querySelector('.tab-close').addEventListener('click', e => {
+      e.stopPropagation();
+      deleteWorkspace(ws.id);
+    });
+    bar.insertBefore(tab, addBtn);
+  });
+}
+
+async function switchWorkspace(id) {
+  if (id === activeWsId) return;
+  activeWsId = id;
+  renderTabs();
+  await loadTiles();
+  saveSetting('active_workspace', String(id));
+  closePanel('pdf-panel'); closePanel('bg-panel');
+}
+
+async function createWorkspace() {
+  const name = prompt('Workspace name:', `Workspace ${workspaces.length + 1}`);
+  if (name === null) return;
+  const r = await fetch('/api/workspaces', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name: name.trim() || 'Workspace' })
+  });
+  const ws = await r.json();
+  workspaces.push(ws);
+  await switchWorkspace(ws.id);
+}
+
+async function deleteWorkspace(id) {
+  if (workspaces.length <= 1) { alert('Cannot delete the last workspace.'); return; }
+  const ws = workspaces.find(w => w.id === id);
+  if (!confirm(`Delete workspace "${ws?.name}"?\n\nAll tiles in it will be removed.`)) return;
+  await fetch(`/api/workspaces/${id}`, { method:'DELETE' });
+  workspaces = workspaces.filter(w => w.id !== id);
+  if (activeWsId === id) {
+    activeWsId = workspaces[0].id;
+    saveSetting('active_workspace', String(activeWsId));
+  }
+  renderTabs();
+  await loadTiles();
+}
+
+function startRenameTab(tabEl, ws) {
+  const nameEl = tabEl.querySelector('.tab-name');
+  const input  = document.createElement('input');
+  input.className = 'tab-name-input';
+  input.value     = ws.name;
+  nameEl.replaceWith(input);
+  input.focus(); input.select();
+
+  async function commit() {
+    const newName = input.value.trim() || ws.name;
+    const r = await fetch(`/api/workspaces/${ws.id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name: newName })
+    });
+    const updated = await r.json();
+    ws.name = updated.name;
+    workspaces[workspaces.findIndex(w => w.id === ws.id)] = updated;
+    renderTabs();
+  }
+  input.addEventListener('blur',    commit);
+  input.addEventListener('keydown', e => { if (e.key==='Enter') input.blur(); if (e.key==='Escape') { input.value = ws.name; input.blur(); } });
+}
+
+// ── Tiles ─────────────────────────────────────────────────
+async function loadTiles() {
+  if (!activeWsId) { tiles = []; renderAll(); return; }
+  const r = await fetch(`/api/workspaces/${activeWsId}/tiles`);
+  tiles = await r.json();
+  renderAll();
+}
+
+function renderAll() {
+  const grid = document.getElementById('grid');
+  grid.querySelectorAll('.tile').forEach(e => e.remove());
+  document.getElementById('empty-state').classList.toggle('show', tiles.length === 0);
+  document.getElementById('tile-count').textContent = `${tiles.length} tile${tiles.length!==1?'s':''}`;
+  tiles.forEach(t => {
+    const el = makeTile(t);
+    grid.appendChild(el);
+    if (t.tile_type === 'pdf') scheduleHidePdfLoading(el);
+  });
+}
+
+function makeTile(t) {
+  const isPdf = t.tile_type === 'pdf';
+  const el    = document.createElement('div');
+  el.className = `tile${isPdf?' tile-pdf':''}`;
+  el.dataset.id = t.id;
+  el.style.gridColumn = `${t.col+1} / span ${t.col_span}`;
+  el.style.gridRow    = `${t.row+1} / span ${t.row_span}`;
+
+  const fullUrl = t.url.startsWith('http') ? t.url : `http://${t.url}`;
+  let faviconSrc = '';
+  if (!isPdf) { try { const u=new URL(fullUrl); faviconSrc=`${u.protocol}//${u.host}/favicon.ico`; } catch {} }
+
+  el.innerHTML = `
+    <div class="tile-header">
+      ${faviconSrc?`<img class="tile-favicon" src="${esc(faviconSrc)}" onerror="this.style.display='none'">`:''}
+      <span class="tile-type-badge ${isPdf?'badge-pdf':t.proxy_mode?'badge-proxy':'badge-iframe'}">${isPdf?'PDF':t.proxy_mode?'PRX':'APP'}</span>
+      <span class="tile-label" title="${esc(fullUrl)}">${esc(t.label||t.url)}</span>
+      <div class="tile-controls">
+        ${!isPdf ? `<button class="tile-btn proxy ${t.proxy_mode?'on':''}" data-action="proxy" title="${t.proxy_mode?'Disable proxy (direct)':'Enable proxy (bypass X-Frame-Options)'}">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </button>` : ''}
+        <button class="tile-btn" data-action="rename" title="Rename">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button class="tile-btn del" data-action="remove" title="Remove">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="tile-body">
+      <div class="tile-shield"></div>
+      ${isPdf ? pdfBody(t.url) : iframeBody(fullUrl, t.proxy_mode)}
+    </div>
+    <div class="rh rh-e"  data-dir="e"></div>
+    <div class="rh rh-s"  data-dir="s"></div>
+    <div class="rh rh-se" data-dir="se">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+        <line x1="9" y1="1" x2="1" y2="9"/><line x1="9" y1="5" x2="5" y2="9"/>
+      </svg>
+    </div>
+  `;
+  el.querySelector('.tile-header').addEventListener('mousedown', onHeaderMouseDown);
+  el.querySelectorAll('.rh').forEach(h => h.addEventListener('mousedown', onResizeStart));
+  el.querySelector('[data-action="rename"]').addEventListener('click', e => { e.stopPropagation(); renameT(t.id); });
+  el.querySelector('[data-action="remove"]').addEventListener('click', e => { e.stopPropagation(); removeT(t.id); });
+  const proxyBtn = el.querySelector('[data-action="proxy"]');
+  if (proxyBtn) proxyBtn.addEventListener('click', e => { e.stopPropagation(); toggleProxy(t.id); });
+  return el;
+}
+
+function iframeBody(url, proxyMode) {
+  const src = proxyMode
+    ? '/proxy/' + encodeURIComponent(url.replace(/\/$/, '')) + '/'
+    : url;
+  return `
+    <div class="tile-loading"><div class="spinner"></div><span>Connecting…</span></div>
+    <iframe src="${esc(src)}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation" loading="lazy"
+      onload="this.previousElementSibling.classList.add('hidden')"></iframe>`;
+}
+function pdfBody(url) {
+  const abs = window.location.origin + (url.startsWith('/') ? url : '/'+url);
+  return `
+    <div class="tile-loading pdf-loading"><div class="spinner pdf"></div><span>Loading PDF…</span></div>
+    <object data="${esc(abs)}" type="application/pdf"
+      style="width:100%;height:100%;border:none;display:block;background:#525659"
+      onload="this.previousElementSibling.classList.add('hidden')">
+      <div class="tile-error">
+        <div class="tile-error-icon">📄</div>
+        <div class="tile-error-msg">Browser could not render PDF inline.</div>
+        <a class="tile-error-link" href="${esc(abs)}" target="_blank" download>Download ↓</a>
+      </div>
+    </object>`;
+}
+function scheduleHidePdfLoading(el) {
+  setTimeout(() => { const l = el.querySelector('.pdf-loading'); if(l) l.classList.add('hidden'); }, 1200);
+}
+
+async function addTile() {
+  const urlEl=document.getElementById('url-input'), labelEl=document.getElementById('label-input');
+  const url = urlEl.value.trim();
+  if (!url || !activeWsId) { urlEl.focus(); return; }
+  const r = await fetch(`/api/workspaces/${activeWsId}/tiles`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ url, label: labelEl.value.trim()||undefined })
+  });
+  const tile = await r.json();
+  tiles.push(tile); urlEl.value=''; labelEl.value='';
+  renderAll(); scrollToTile(tile.id);
+}
+
+async function removeT(id) {
+  await fetch(`/api/tiles/${id}`, { method:'DELETE' });
+  tiles = tiles.filter(t => t.id !== id);
+  renderAll();
+}
+
+async function renameT(id) {
+  const t = tiles.find(t => t.id===id); if (!t) return;
+  const label = prompt('Rename:', t.label||t.url); if (label===null) return;
+  const r = await fetch(`/api/tiles/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({label})
+  });
+  tiles[tiles.findIndex(t=>t.id===id)] = await r.json();
+  renderAll();
+}
+
+async function toggleProxy(id) {
+  const tile = tiles.find(t => t.id === id);
+  if (!tile) return;
+  const newMode = tile.proxy_mode ? 0 : 1;
+  const r = await fetch(`/api/tiles/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ proxy_mode: newMode })
+  });
+  tiles[tiles.findIndex(t=>t.id===id)] = await r.json();
+  renderAll();
+}
+
+function scrollToTile(id) {
+  setTimeout(() => { const el=document.querySelector(`.tile[data-id="${id}"]`); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); }, 80);
+}
+
+// ── Resize ────────────────────────────────────────────────
+function onResizeStart(e) {
+  e.preventDefault(); e.stopPropagation();
+  const handle=e.currentTarget, dir=handle.dataset.dir, el=handle.closest('.tile');
+  const id=parseInt(el.dataset.id), tile=tiles.find(t=>t.id===id);
+  const isPdf=tile.tile_type==='pdf';
+  const ghost=document.getElementById('op-ghost'), tip=document.getElementById('op-tip');
+  const tRect=el.getBoundingClientRect();
+  const originCol=tile.col, originRow=tile.row;
+
+  el.classList.add('is-resizing'); handle.classList.add('active');
+  document.body.classList.add('interacting');
+  document.getElementById('grid-guide').classList.add('show');
+  ghost.className=isPdf?'pdf':'';
+  Object.assign(ghost.style,{display:'block',left:tRect.left+'px',top:tRect.top+'px',width:tRect.width+'px',height:tRect.height+'px'});
+
+  let newColSpan=tile.col_span, newRowSpan=tile.row_span;
+
+  function onMove(ev) {
+    const g=gridGeo();
+    if (dir==='e'||dir==='se') newColSpan=Math.max(1,Math.min(COLS-originCol, Math.floor((ev.clientX-g.left)/(g.colW+GAP))-originCol+1));
+    if (dir==='s'||dir==='se') newRowSpan=Math.max(1, Math.floor((ev.clientY-g.top)/(g.rowH+GAP))-originRow+1);
+    const g2=gridGeo(), w=newColSpan*g2.colW+(newColSpan-1)*GAP, h=newRowSpan*g2.rowH+(newRowSpan-1)*GAP;
+    const o=cellToPx(originCol,originRow,g2);
+    Object.assign(ghost.style,{left:o.x+'px',top:o.y+'px',width:w+'px',height:h+'px'});
+    Object.assign(tip.style,{display:'block',left:(ev.clientX+14)+'px',top:(ev.clientY+10)+'px'});
+    tip.textContent=`${newColSpan} col × ${newRowSpan} row`;
+  }
+  async function onUp() {
+    document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp);
+    ghost.style.display='none'; tip.style.display='none';
+    el.classList.remove('is-resizing'); handle.classList.remove('active');
+    document.body.classList.remove('interacting');
+    document.getElementById('grid-guide').classList.remove('show');
+    if (newColSpan!==tile.col_span||newRowSpan!==tile.row_span) {
+      const r=await fetch(`/api/tiles/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({col_span:newColSpan,row_span:newRowSpan})});
+      tiles[tiles.findIndex(t=>t.id===id)]=await r.json(); renderAll();
+    }
+  }
+  document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+}
+
+// ── Drag to move ──────────────────────────────────────────
+function onHeaderMouseDown(e) {
+  if (e.target.closest('button')||e.button!==0) return;
+  const el=e.currentTarget.closest('.tile'), id=parseInt(el.dataset.id), tile=tiles.find(t=>t.id===id);
+  const tRect=el.getBoundingClientRect(), startX=e.clientX, startY=e.clientY;
+  const offX=e.clientX-tRect.left, offY=e.clientY-tRect.top;
+  let dragging=false, newCol=tile.col, newRow=tile.row;
+  const ghost=document.getElementById('op-ghost'), tip=document.getElementById('op-tip');
+  const preview=document.getElementById('drop-preview');
+
+  function activate() {
+    dragging=true; el.classList.add('is-dragging');
+    document.body.classList.add('interacting');
+    document.getElementById('grid-guide').classList.add('show');
+    ghost.className='drag-ghost';
+    Object.assign(ghost.style,{display:'block',width:tRect.width+'px',height:tRect.height+'px',left:(startX-offX)+'px',top:(startY-offY)+'px'});
+    preview.style.display='block';
+  }
+  function onMove(ev) {
+    if (!dragging) { if(Math.abs(ev.clientX-startX)>DRAG_THRESHOLD||Math.abs(ev.clientY-startY)>DRAG_THRESHOLD) activate(); else return; }
+    ghost.style.left=(ev.clientX-offX)+'px'; ghost.style.top=(ev.clientY-offY)+'px';
+    const g=gridGeo();
+    newCol=Math.max(0,Math.min(COLS-tile.col_span,Math.round((ev.clientX-offX-g.left)/(g.colW+GAP))));
+    newRow=Math.max(0,Math.round((ev.clientY-offY-g.top)/(g.rowH+GAP)));
+    const snap=cellToPx(newCol,newRow,g), w=tile.col_span*g.colW+(tile.col_span-1)*GAP, h=tile.row_span*g.rowH+(tile.row_span-1)*GAP;
+    const gr=document.getElementById('grid').getBoundingClientRect();
+    Object.assign(preview.style,{left:(snap.x-gr.left)+'px',top:(snap.y-gr.top+window.scrollY)+'px',width:w+'px',height:h+'px'});
+    Object.assign(tip.style,{display:'block',left:(ev.clientX+14)+'px',top:(ev.clientY+10)+'px'});
+    tip.textContent=`col ${newCol+1}, row ${newRow+1}`;
+  }
+  async function onUp() {
+    document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp);
+    ghost.style.display='none'; tip.style.display='none'; preview.style.display='none';
+    el.classList.remove('is-dragging'); document.body.classList.remove('interacting');
+    document.getElementById('grid-guide').classList.remove('show');
+    if (dragging&&(newCol!==tile.col||newRow!==tile.row)) {
+      const r=await fetch(`/api/tiles/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({col:newCol,row:newRow})});
+      tiles[tiles.findIndex(t=>t.id===id)]=await r.json(); renderAll();
+    }
+  }
+  document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+}
+
+// ── PDF panel ─────────────────────────────────────────────
+async function loadPdfLibrary() {
+  const r=await fetch('/api/pdfs'), pdfs=await r.json();
+  const list=document.getElementById('pdf-list');
+  if (!pdfs.length) { list.innerHTML='<div class="pdf-list-empty">No PDFs uploaded yet</div>'; return; }
+  list.innerHTML=pdfs.map(p=>`
+    <div class="pdf-list-item">
+      <span class="pdf-list-icon">📄</span>
+      <span class="pdf-list-name" title="${esc(p.filename)}">${esc(labelFromFilename(p.filename))}</span>
+      <span class="pdf-list-size">${fmtSize(p.size)}</span>
+      <button class="pdf-list-btn add" onclick="addPdfTile('${esc(p.url)}','${esc(labelFromFilename(p.filename))}')" title="Add to workspace">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <button class="pdf-list-btn del" onclick="deletePdf('${esc(p.filename)}')" title="Delete file">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+    </div>`).join('');
+}
+
+async function addPdfTile(url, label) {
+  if (!activeWsId) return;
+  const last = tiles.length ? Math.max(...tiles.map(t=>t.row+t.row_span)) : 0;
+  const r = await fetch(`/api/workspaces/${activeWsId}/tiles`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ url, label, tile_type:'pdf', col:0, row:last, col_span:6, row_span:8 })
+  });
+  const tile=await r.json(); tiles.push(tile); renderAll(); scrollToTile(tile.id); closePanel('pdf-panel');
+}
+
+async function deletePdf(filename) {
+  if (!confirm(`Delete "${labelFromFilename(filename)}" from uploads?\n\nTiles using this PDF will break.`)) return;
+  await fetch(`/api/pdfs/${encodeURIComponent(filename)}`,{method:'DELETE'});
+  loadPdfLibrary();
+}
+
+async function uploadPdf(file) {
+  if (!file||!activeWsId) return;
+  const label=document.getElementById('pdf-label').value.trim();
+  const prog=document.getElementById('pdf-prog'), bar=document.getElementById('pdf-bar'), status=document.getElementById('pdf-status');
+  prog.style.display='block'; bar.style.width='0%'; status.textContent='Uploading…';
+  const fd=new FormData(); fd.append('pdf',file); fd.append('workspace_id',String(activeWsId));
+  if (label) fd.append('label',label);
+  try {
+    const tile=await new Promise((res,rej)=>{
+      const xhr=new XMLHttpRequest(); xhr.open('POST','/api/pdf');
+      xhr.upload.onprogress=ev=>{ if(ev.lengthComputable) bar.style.width=(ev.loaded/ev.total*100)+'%'; };
+      xhr.onload=()=>xhr.status===200?res(JSON.parse(xhr.responseText)):rej();
+      xhr.onerror=rej; xhr.send(fd);
+    });
+    tiles.push(tile); renderAll(); scrollToTile(tile.id);
+    document.getElementById('pdf-label').value=''; document.getElementById('pdf-file').value='';
+    status.textContent='✓ Added!'; loadPdfLibrary();
+    setTimeout(()=>{ prog.style.display='none'; status.textContent=''; },1500);
+  } catch { status.textContent='⚠ Upload failed'; prog.style.display='none'; }
+}
+
+function labelFromFilename(f) { return f.replace(/^pdf-\d+-\d+\.pdf$/,f).replace(/\.pdf$/i,''); }
+function fmtSize(b) { if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(0)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
+
+function bindPdfDrop() {
+  const dz=document.getElementById('pdf-dropzone');
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f&&f.type==='application/pdf')uploadPdf(f);});
+}
+
+// ── Background ─────────────────────────────────────────────
+async function uploadBackground(file) {
+  if (!file) return;
+  const fd=new FormData(); fd.append('image',file);
+  const r=await fetch('/api/background',{method:'POST',body:fd}); const d=await r.json();
+  if (d.url) applyBg(d.url+'?t='+Date.now());
+}
+async function removeBackground() {
+  await fetch('/api/background',{method:'DELETE'});
+  document.getElementById('bg-layer').style.backgroundImage='';
+  const p=document.getElementById('bg-preview'); p.style.display='none'; p.src='';
+}
+function bindBgDrop() {
+  const dz=document.getElementById('bg-dropzone');
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))uploadBackground(f);});
+}
+
+// ── Panels ────────────────────────────────────────────────
+function togglePanel(id) {
+  const isOpen=document.getElementById(id).classList.contains('open');
+  ['bg-panel','pdf-panel'].forEach(p=>document.getElementById(p).classList.remove('open'));
+  if (!isOpen) { document.getElementById(id).classList.add('open'); if(id==='pdf-panel')loadPdfLibrary(); }
+}
+function closePanel(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── Grid guide ─────────────────────────────────────────────
+function buildGuide() {
+  const g=document.getElementById('grid-guide');
+  for(let i=0;i<COLS;i++){const d=document.createElement('div');d.className='guide-col';g.appendChild(d);}
+}
+
+// ── Misc ─────────────────────────────────────────────────
+function bindEnter() {
+  ['url-input','label-input'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>e.key==='Enter'&&addTile()));
+  document.getElementById('pdf-label').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('pdf-file').click();});
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+init();
+</script>
+</body>
+</html>

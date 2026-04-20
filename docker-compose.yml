@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  dashboard:
+    build: .
+    container_name: griddock
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Keep data and uploads on named volumes so they survive rebuilds.
+      # Uploads are mounted at /app/uploads (NOT inside /app/public) so
+      # express.static('public') never conflicts with the runtime volume.
+      - dashboard_data:/app/data
+      - dashboard_uploads:/app/uploads
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/data
+      - UPLOADS_DIR=/app/uploads
+    # Uncomment to reach services on host ports from inside the container:
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+
+volumes:
+  dashboard_data:
+  dashboard_uploads:
