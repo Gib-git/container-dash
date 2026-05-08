@@ -4,14 +4,21 @@
 
 A sleek, resizable grid dashboard for managing local container web UIs. All tile positions and sizes persist in SQLite. Using it for studying since all my windows get very messy very quickly on mac os and I just use docker containers anyway. Wish for better window management. 
 
+
 ## Features
 
+- **Multiple workspaces** — tab bar at the top; create, rename, and delete workspaces
 - **Add tiles** — paste any URL, optionally give it a label
-- **Resize tiles** — drag the corner handle; neighbors reflow automatically
-- **Remove tiles** — one-click ×
-- **Rename tiles** — pencil icon in the header
-- **Background image** — upload any JPG/PNG/WebP via the 📷 toolbar button
-- **Persistent** — SQLite database survives restarts
+- **Resize tiles** — drag the E / S / SE handles; layout snaps to a 12-column grid
+- **Drag to reposition** — grab the tile header and drop anywhere on the grid
+- **Zoom per tile** — `−` / `+` buttons in the tile header scale iframe content from 25% to 300%; fills the tile at every zoom level. Persists across reloads.
+- **Force dark mode per tile** — moon icon inverts the iframe's colors (CSS filter trick). Persists across reloads.
+- **Proxy mode per tile** — globe icon rewrites all requests through the built-in reverse proxy to bypass `X-Frame-Options` headers
+- **PDF widgets** — upload PDFs and embed them as tiles via the ⊕ PDF toolbar button
+- **Background image** — upload any JPG/PNG/WebP via the 🖼 toolbar button
+- **Hide toolbar** — collapse the top bar; a small tab re-expands it
+- **Toggle borders** — hide tile borders for a cleaner look
+- **Persistent** — SQLite database with automatic schema migrations; survives restarts and upgrades
 
 ## Quick Start
 
@@ -21,14 +28,16 @@ A sleek, resizable grid dashboard for managing local container web UIs. All tile
 docker compose up -d
 ```
 
-Open http://localhost:3000
+Open http://localhost:3006
 
 ### Local dev (Node 18+)
 
 ```bash
 npm install
-npm start          # or: npm run dev (with auto-reload)
+npm start          # or: npm run dev  (nodemon auto-reload)
 ```
+
+Open http://localhost:3006
 
 ## Accessing other containers
 
@@ -36,18 +45,18 @@ If your other containers expose ports on the **host**, use `http://localhost:POR
 
 For containers on the **same Docker network**, use the service name: `http://myservice:PORT`.
 
+If a service blocks embedding via `X-Frame-Options`, enable **Proxy mode** on that tile — the built-in proxy strips those headers and rewrites HTML/JS/CSS URLs transparently.
+
 ## Ports & volumes
 
-| Item | Default |
-|------|---------|
-| HTTP port | `3000` |
+| Item | Value |
+|------|-------|
+| HTTP port | `3006` (hardcoded) |
 | SQLite DB | Docker volume `dashboard_data` |
-| Uploaded images | Docker volume `dashboard_uploads` |
-
-Override the port by changing `3000:3000` in `docker-compose.yml`.
+| Uploaded files | Docker volume `dashboard_uploads` |
 
 ## Tech stack
 
 - **Backend** — Node.js + Express + better-sqlite3
-- **Frontend** — Vanilla JS, CSS Grid, no framework needed
-- **Persistence** — SQLite (single file, zero config)
+- **Frontend** — Vanilla JS, CSS Grid, no build step
+- **Persistence** — SQLite with append-only migrations (safe on existing databases)

@@ -6,7 +6,7 @@ services:
     container_name: griddock
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3006:3006"
     volumes:
       # Keep data and uploads on named volumes so they survive rebuilds.
       # Uploads are mounted at /app/uploads (NOT inside /app/public) so
@@ -14,7 +14,7 @@ services:
       - dashboard_data:/app/data
       - dashboard_uploads:/app/uploads
     environment:
-      - PORT=3000
+      - PORT=3006
       - DATA_DIR=/app/data
       - UPLOADS_DIR=/app/uploads
     # Uncomment to reach services on host ports from inside the container:

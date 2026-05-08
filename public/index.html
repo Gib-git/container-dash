@@ -238,6 +238,9 @@
     .tile-btn.del:hover { color: var(--danger); }
     .tile-btn.proxy { color: var(--text-dim); }
     .tile-btn.proxy.on { color: #ffc800; }
+    .tile-zoom-level { font-size: 9px; color: var(--text-dim); min-width: 28px; text-align: center; line-height: 20px; flex-shrink: 0; }
+    .tile-btn.dark-on { color: #a78bfa; }
+    .tile-body iframe.iframe-dark { filter: invert(1) hue-rotate(180deg); }
     .tile-btn.proxy:hover { color: #ffc800; }
 
     .tile-body { flex: 1; position: relative; min-height: 0; overflow: hidden; border-radius: 0 0 var(--radius) var(--radius); }
@@ -427,6 +430,8 @@ let workspaces   = [];   // [{id, name, pos}]
 let activeWsId   = null;
 let tiles        = [];   // tiles for active workspace
 let settings     = {};
+const tileZoom     = {};  // tile id → zoom scale (1 = 100%)
+const tileDarkMode = {};  // tile id → bool
 
 // ── Boot ──────────────────────────────────────────────────
 async function init() {
@@ -592,6 +597,7 @@ async function loadTiles() {
   if (!activeWsId) { tiles = []; renderAll(); return; }
   const r = await fetch(`/api/workspaces/${activeWsId}/tiles`);
   tiles = await r.json();
+  tiles.forEach(t => { tileZoom[t.id] = t.zoom ?? 1; tileDarkMode[t.id] = !!t.dark_mode; });
   renderAll();
 }
 
@@ -625,7 +631,18 @@ function makeTile(t) {
       <span class="tile-type-badge ${isPdf?'badge-pdf':t.proxy_mode?'badge-proxy':'badge-iframe'}">${isPdf?'PDF':t.proxy_mode?'PRX':'APP'}</span>
       <span class="tile-label" title="${esc(fullUrl)}">${esc(t.label||t.url)}</span>
       <div class="tile-controls">
-        ${!isPdf ? `<button class="tile-btn proxy ${t.proxy_mode?'on':''}" data-action="proxy" title="${t.proxy_mode?'Disable proxy (direct)':'Enable proxy (bypass X-Frame-Options)'}">
+        ${!isPdf ? `
+        <button class="tile-btn" data-action="zoom-out" title="Zoom out">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <span class="tile-zoom-level">${Math.round((tileZoom[t.id]??1)*100)}%</span>
+        <button class="tile-btn" data-action="zoom-in" title="Zoom in">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button class="tile-btn ${tileDarkMode[t.id]?'dark-on':''}" data-action="dark-mode" title="Force dark mode">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button class="tile-btn proxy ${t.proxy_mode?'on':''}" data-action="proxy" title="${t.proxy_mode?'Disable proxy (direct)':'Enable proxy (bypass X-Frame-Options)'}">
           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
           </svg>
@@ -661,6 +678,17 @@ function makeTile(t) {
   el.querySelector('[data-action="remove"]').addEventListener('click', e => { e.stopPropagation(); removeT(t.id); });
   const proxyBtn = el.querySelector('[data-action="proxy"]');
   if (proxyBtn) proxyBtn.addEventListener('click', e => { e.stopPropagation(); toggleProxy(t.id); });
+  if (!isPdf) {
+    el.querySelector('[data-action="zoom-in"]').addEventListener('click', e => { e.stopPropagation(); zoomTile(t.id, 0.25); });
+    el.querySelector('[data-action="zoom-out"]').addEventListener('click', e => { e.stopPropagation(); zoomTile(t.id, -0.25); });
+    el.querySelector('[data-action="dark-mode"]').addEventListener('click', e => { e.stopPropagation(); toggleTileDarkMode(t.id); });
+    const iframe = el.querySelector('iframe');
+    if (iframe) {
+      const z = tileZoom[t.id];
+      if (z && z !== 1) applyZoomToIframe(iframe, z);
+      if (tileDarkMode[t.id]) iframe.classList.add('iframe-dark');
+    }
+  }
   return el;
 }
 
@@ -730,6 +758,49 @@ async function toggleProxy(id) {
   });
   tiles[tiles.findIndex(t=>t.id===id)] = await r.json();
   renderAll();
+}
+
+function applyZoomToIframe(iframe, z) {
+  if (z === 1) {
+    iframe.style.position = '';
+    iframe.style.left = '';
+    iframe.style.top = '';
+    iframe.style.width = '';
+    iframe.style.height = '';
+    iframe.style.transform = '';
+    iframe.style.transformOrigin = '';
+  } else {
+    // left = 50*(1-1/z)% positions the element so that scaling from its
+    // own top-center always fills the tile body exactly, for any zoom level.
+    iframe.style.position = 'absolute';
+    iframe.style.left = (50 * (1 - 1 / z)) + '%';
+    iframe.style.top = '0';
+    iframe.style.width = (100 / z) + '%';
+    iframe.style.height = (100 / z) + '%';
+    iframe.style.transformOrigin = 'top center';
+    iframe.style.transform = `scale(${z})`;
+  }
+}
+
+function zoomTile(id, delta) {
+  const z = Math.max(0.25, Math.min(3.0, Math.round(((tileZoom[id]??1) + delta) * 100) / 100));
+  tileZoom[id] = z;
+  const el = document.querySelector(`.tile[data-id="${id}"]`);
+  if (!el) return;
+  const iframe = el.querySelector('iframe');
+  if (iframe) applyZoomToIframe(iframe, z);
+  const lv = el.querySelector('.tile-zoom-level');
+  if (lv) lv.textContent = Math.round(z*100)+'%';
+  fetch(`/api/tiles/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({zoom:z}) });
+}
+
+function toggleTileDarkMode(id) {
+  tileDarkMode[id] = !tileDarkMode[id];
+  const el = document.querySelector(`.tile[data-id="${id}"]`);
+  if (!el) return;
+  el.querySelector('iframe')?.classList.toggle('iframe-dark', tileDarkMode[id]);
+  el.querySelector('[data-action="dark-mode"]')?.classList.toggle('dark-on', tileDarkMode[id]);
+  fetch(`/api/tiles/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({dark_mode: tileDarkMode[id] ? 1 : 0}) });
 }
 
 function scrollToTile(id) {

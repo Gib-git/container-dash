@@ -50,6 +50,8 @@ const migrations = [
   `ALTER TABLE tiles ADD COLUMN tile_type TEXT NOT NULL DEFAULT 'iframe'`,
   `ALTER TABLE tiles ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`,
   `ALTER TABLE tiles ADD COLUMN proxy_mode INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE tiles ADD COLUMN zoom REAL NOT NULL DEFAULT 1`,
+  `ALTER TABLE tiles ADD COLUMN dark_mode INTEGER NOT NULL DEFAULT 0`,
 ];
 migrations.forEach(sql => { try { db.exec(sql); } catch (_) {} });
 
@@ -161,16 +163,24 @@ app.post('/api/workspaces/:wsId/tiles', (req, res) => {
 });
 
 app.put('/api/tiles/:id', (req, res) => {
-  const { url, label, col, row, col_span, row_span, proxy_mode } = req.body;
+  const { url, label, col, row, col_span, row_span, proxy_mode, zoom, dark_mode } = req.body;
   const tile = db.prepare('SELECT * FROM tiles WHERE id = ?').get(req.params.id);
   if (!tile) return res.status(404).json({ error: 'Not found' });
   db.prepare(`UPDATE tiles SET
     url=COALESCE(?,url), label=COALESCE(?,label),
     col=COALESCE(?,col), row=COALESCE(?,row),
     col_span=COALESCE(?,col_span), row_span=COALESCE(?,row_span),
-    proxy_mode=COALESCE(?,proxy_mode)
+    proxy_mode=COALESCE(?,proxy_mode),
+    zoom=COALESCE(?,zoom),
+    dark_mode=COALESCE(?,dark_mode)
     WHERE id=?`
-  ).run(url, label, col, row, col_span, row_span, proxy_mode !== undefined ? (proxy_mode ? 1 : 0) : null, req.params.id);
+  ).run(
+    url, label, col, row, col_span, row_span,
+    proxy_mode !== undefined ? (proxy_mode ? 1 : 0) : null,
+    zoom !== undefined ? zoom : null,
+    dark_mode !== undefined ? (dark_mode ? 1 : 0) : null,
+    req.params.id
+  );
   res.json(db.prepare('SELECT * FROM tiles WHERE id = ?').get(req.params.id));
 });
 

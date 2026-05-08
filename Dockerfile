@@ -15,9 +15,9 @@ COPY . .
 # doesn't conflict with the Docker volume that mounts over it.
 RUN mkdir -p data uploads
 
-EXPOSE 3000
+EXPOSE 3006
 
-ENV PORT=3000
+ENV PORT=3006
 ENV DATA_DIR=/app/data
 ENV UPLOADS_DIR=/app/uploads
 
