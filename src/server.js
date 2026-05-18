@@ -66,7 +66,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.use('/uploads', (req, res) => {
-  const safe     = path.normalize(req.path).replace(/^(\.\.[/\\])+/, '');
+  let decoded; try { decoded = decodeURIComponent(req.path); } catch { decoded = req.path; }
+  const safe     = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
   const filePath = path.join(UPLOADS_DIR, safe);
   if (!filePath.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).send('Forbidden');
   if (!fs.existsSync(filePath)) return res.status(404).send('Not found');

@@ -705,15 +705,8 @@ function pdfBody(url) {
   const abs = window.location.origin + (url.startsWith('/') ? url : '/'+url);
   return `
     <div class="tile-loading pdf-loading"><div class="spinner pdf"></div><span>Loading PDF…</span></div>
-    <object data="${esc(abs)}" type="application/pdf"
-      style="width:100%;height:100%;border:none;display:block;background:#525659"
-      onload="this.previousElementSibling.classList.add('hidden')">
-      <div class="tile-error">
-        <div class="tile-error-icon">📄</div>
-        <div class="tile-error-msg">Browser could not render PDF inline.</div>
-        <a class="tile-error-link" href="${esc(abs)}" target="_blank" download>Download ↓</a>
-      </div>
-    </object>`;
+    <iframe src="${esc(abs)}" style="width:100%;height:100%;border:none;display:block;background:#525659"
+      onload="this.previousElementSibling.classList.add('hidden')"></iframe>`;
 }
 function scheduleHidePdfLoading(el) {
   setTimeout(() => { const l = el.querySelector('.pdf-loading'); if(l) l.classList.add('hidden'); }, 1200);
@@ -902,13 +895,17 @@ async function loadPdfLibrary() {
       <span class="pdf-list-icon">📄</span>
       <span class="pdf-list-name" title="${esc(p.filename)}">${esc(labelFromFilename(p.filename))}</span>
       <span class="pdf-list-size">${fmtSize(p.size)}</span>
-      <button class="pdf-list-btn add" onclick="addPdfTile('${esc(p.url)}','${esc(labelFromFilename(p.filename))}')" title="Add to workspace">
+      <button class="pdf-list-btn add" data-url="${esc(p.url)}" data-label="${esc(labelFromFilename(p.filename))}" title="Add to workspace">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
-      <button class="pdf-list-btn del" onclick="deletePdf('${esc(p.filename)}')" title="Delete file">
+      <button class="pdf-list-btn del" data-filename="${esc(p.filename)}" title="Delete file">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </button>
     </div>`).join('');
+  list.querySelectorAll('.pdf-list-btn.add').forEach(btn =>
+    btn.addEventListener('click', () => addPdfTile(btn.dataset.url, btn.dataset.label)));
+  list.querySelectorAll('.pdf-list-btn.del').forEach(btn =>
+    btn.addEventListener('click', () => deletePdf(btn.dataset.filename)));
 }
 
 async function addPdfTile(url, label) {
