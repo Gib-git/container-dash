@@ -1,24 +1,14 @@
 FROM node:20-alpine
 
-# Build deps for better-sqlite3
+# Build deps for better-sqlite3 native module
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
+# Install deps (including devDependencies for nodemon)
 COPY package*.json ./
-RUN npm install --omit=dev
-
-COPY . .
-
-# Create runtime dirs. /app/uploads is the volume mount point for
-# user-uploaded files. It lives outside /app/public so express.static
-# doesn't conflict with the Docker volume that mounts over it.
-RUN mkdir -p data uploads
+RUN npm install
 
 EXPOSE 3006
 
-ENV PORT=3006
-ENV DATA_DIR=/app/data
-ENV UPLOADS_DIR=/app/uploads
-
-CMD ["node", "src/server.js"]
+CMD ["npm", "run", "dev"]
